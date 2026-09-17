@@ -1,4 +1,4 @@
-# BrewAutomation
+# mac-upkeep
 
 Automated Homebrew, uv, and Python package updates on macOS with **hardened security**, error handling, and email notifications. Includes both automated scheduling and manual triggers.
 
@@ -35,6 +35,7 @@ com.suryakiran.brewauto LaunchAgent (plist, daily at 8:00 AM)
                     ├── uv tool upgrade --all        │  a 600-perm temp file
                     ├── uv pip install --upgrade   ──┘  (pyenv Python)
                     ├── brew cleanup --prune=all
+                    ├── cache_cleanup.sh --emit-summary  (dry run by default)
                     ├── awk parses the temp file: dedup + group by category,
                     │   HTML-escape, emit "@@COUNT@@ n" + the HTML table body
                     ├── notify.py  ──► Gmail SMTP_SSL, HTML + plain-text
@@ -196,7 +197,7 @@ Brew update failed on 2026-04-01.
 Failed step: brew upgrade
 Exit code: 1
 
-See ~/IdeaProjects/BrewAutomation/error.log for details.
+See ~/IdeaProjects/mac-upkeep/error.log for details.
 
 Next retry at 8:00 AM tomorrow.
 ```
@@ -207,12 +208,12 @@ Next retry at 8:00 AM tomorrow.
 
 ### 1. Clone/Copy to Home Directory
 ```bash
-git clone <repo> ~/IdeaProjects/BrewAutomation
-cd ~/IdeaProjects/BrewAutomation
+git clone <repo> ~/IdeaProjects/mac-upkeep
+cd ~/IdeaProjects/mac-upkeep
 chmod +x *.sh  # Make scripts executable
 ```
 
-> The scripts resolve every path from `$HOME/IdeaProjects/BrewAutomation`. If
+> The scripts resolve every path from `$HOME/IdeaProjects/mac-upkeep`. If
 > you clone somewhere else, update `BASE_DIR` at the top of `brew_autoupdate.sh`,
 > `bubu_executor.sh`, and `restart_script.sh`, and the `SOURCE_PATH` variables in
 > the two installers.
@@ -295,7 +296,7 @@ Should show:
 
 ### Trigger Brew Update
 ```bash
-~/IdeaProjects/BrewAutomation/bubu_executor.sh --manual
+~/IdeaProjects/mac-upkeep/bubu_executor.sh --manual
 ```
 - Runs immediately in iTerm2 (or background if iTerm2 unavailable)
 - Logs to separate `brew_update_manual.log` and `error_manual.log`
@@ -305,14 +306,14 @@ Should show:
 
 ### Trigger System Restart
 ```bash
-bash ~/IdeaProjects/BrewAutomation/restart_script.sh --manual
+bash ~/IdeaProjects/mac-upkeep/restart_script.sh --manual
 ```
 - Prompts: "System restart will occur in 3 seconds. Press Ctrl+C to cancel."
 - Logs to separate `restart_history_manual.log`
 - Sends email notification
 - **Use `--force` to skip the confirmation prompt:**
   ```bash
-  bash ~/IdeaProjects/BrewAutomation/restart_script.sh --manual --force
+  bash ~/IdeaProjects/mac-upkeep/restart_script.sh --manual --force
   ```
 
 ---
@@ -322,33 +323,33 @@ bash ~/IdeaProjects/BrewAutomation/restart_script.sh --manual
 ### Check Logs
 ```bash
 # Automated brew run
-tail -f ~/IdeaProjects/BrewAutomation/brew_update.log
+tail -f ~/IdeaProjects/mac-upkeep/brew_update.log
 
 # Manual brew run
-tail -f ~/IdeaProjects/BrewAutomation/brew_update_manual.log
+tail -f ~/IdeaProjects/mac-upkeep/brew_update_manual.log
 
 # Errors (automated)
-tail -f ~/IdeaProjects/BrewAutomation/error.log
+tail -f ~/IdeaProjects/mac-upkeep/error.log
 
 # Errors (manual)
-tail -f ~/IdeaProjects/BrewAutomation/error_manual.log
+tail -f ~/IdeaProjects/mac-upkeep/error_manual.log
 
 # Skipped runs
-tail -f ~/IdeaProjects/BrewAutomation/skips.log
+tail -f ~/IdeaProjects/mac-upkeep/skips.log
 
 # Restart history (automated)
-cat ~/IdeaProjects/BrewAutomation/restart_history.log
+cat ~/IdeaProjects/mac-upkeep/restart_history.log
 
 # Restart history (manual)
-cat ~/IdeaProjects/BrewAutomation/restart_history_manual.log
+cat ~/IdeaProjects/mac-upkeep/restart_history_manual.log
 
 # LaunchAgent system output
-tail -f ~/IdeaProjects/BrewAutomation/system_stderr.log
-tail -f ~/IdeaProjects/BrewAutomation/system_stdout.log
+tail -f ~/IdeaProjects/mac-upkeep/system_stderr.log
+tail -f ~/IdeaProjects/mac-upkeep/system_stdout.log
 
 # LaunchDaemon system output (restart)
-tail -f ~/IdeaProjects/BrewAutomation/restart_stdout.log
-tail -f ~/IdeaProjects/BrewAutomation/restart_stderr.log
+tail -f ~/IdeaProjects/mac-upkeep/restart_stdout.log
+tail -f ~/IdeaProjects/mac-upkeep/restart_stderr.log
 ```
 
 ### Check LaunchAgent Status
@@ -424,10 +425,10 @@ All log files are created with `600` permissions (owner-only readable).
 **Debug steps:**
 1. Check LaunchAgent is loaded: `launchctl list com.suryakiran.brewauto`
    - Should show `0` (loaded) or `1` (exited successfully)
-2. Check for errors: `tail ~/IdeaProjects/BrewAutomation/system_stderr.log`
+2. Check for errors: `tail ~/IdeaProjects/mac-upkeep/system_stderr.log`
 3. Check LaunchAgent environment: `launchctl getenv PATH` (verify it includes brew path)
 4. Reload the agent: `bash reload.sh`
-5. Test manually: `bash ~/IdeaProjects/BrewAutomation/bubu_executor.sh --manual`
+5. Test manually: `bash ~/IdeaProjects/mac-upkeep/bubu_executor.sh --manual`
 
 ### Emails not sending
 **Symptoms:** No email received on success/failure
@@ -435,7 +436,7 @@ All log files are created with `600` permissions (owner-only readable).
 **Debug steps:**
 1. Verify `.env` has all credentials:
    ```bash
-   grep -c "^SENDER_EMAIL\|^SENDER_APP_PASSWORD\|^RECIPIENT_EMAIL" ~/IdeaProjects/BrewAutomation/.env
+   grep -c "^SENDER_EMAIL\|^SENDER_APP_PASSWORD\|^RECIPIENT_EMAIL" ~/IdeaProjects/mac-upkeep/.env
    ```
    Expect `3`. (Counting rather than printing keeps the app password off your
    screen and out of your shell history.)
@@ -443,11 +444,11 @@ All log files are created with `600` permissions (owner-only readable).
 3. Verify 2-Step Verification is enabled: https://myaccount.google.com/security
 4. Check for SMTP errors:
    ```bash
-   tail -50 ~/IdeaProjects/BrewAutomation/error.log | grep -i "smtp\|auth\|network"
+   tail -50 ~/IdeaProjects/mac-upkeep/error.log | grep -i "smtp\|auth\|network"
    ```
 5. Test email sending (credentials loaded from `.env` automatically):
    ```bash
-   cd ~/IdeaProjects/BrewAutomation && python3 notify.py "Test Email" "This is a test." ""
+   cd ~/IdeaProjects/mac-upkeep && python3 notify.py "Test Email" "This is a test." ""
    ```
 
 ### Tools not found (brew, uv, python)
@@ -471,12 +472,12 @@ All log files are created with `600` permissions (owner-only readable).
 **Symptoms:** Manual trigger returns immediately without running
 
 **Debug steps:**
-1. Check if lock file exists: `ls -la ~/IdeaProjects/BrewAutomation/brew_update.lock`
-2. If it does, check the PID: `cat ~/IdeaProjects/BrewAutomation/brew_update.lock`
+1. Check if lock file exists: `ls -la ~/IdeaProjects/mac-upkeep/brew_update.lock`
+2. If it does, check the PID: `cat ~/IdeaProjects/mac-upkeep/brew_update.lock`
 3. If that process doesn't exist, remove the stale lock and lock directory:
    ```bash
-   rm -f ~/IdeaProjects/BrewAutomation/brew_update.lock
-   rm -rf ~/IdeaProjects/BrewAutomation/brew_update.lock.d
+   rm -f ~/IdeaProjects/mac-upkeep/brew_update.lock
+   rm -rf ~/IdeaProjects/mac-upkeep/brew_update.lock.d
    ```
 
 ### System restart confirmation appears even on scheduled run
@@ -564,7 +565,7 @@ launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.suryakiran.tzwatch.pli
 sudo launchctl bootout system /Library/LaunchDaemons/com.suryakiran.restart.plist
 
 # Remove the project directory (optional)
-rm -rf ~/IdeaProjects/BrewAutomation
+rm -rf ~/IdeaProjects/mac-upkeep
 ```
 
 ---
@@ -651,3 +652,50 @@ This project uses `$HOME` for all paths — works on any macOS user account afte
 ## License
 
 [MIT](LICENSE)
+
+---
+
+## Disk / Cache Cleanup
+
+`cache_cleanup.sh` reclaims regenerable cache space. It is **dry-run by
+default** — it prints what it would delete and deletes nothing until `--apply`
+is passed.
+
+```bash
+./cache_cleanup.sh                 # report only (default)
+./cache_cleanup.sh --apply         # actually delete
+./cache_cleanup.sh --emit-summary  # @@CAT@@ rows for the summary email
+```
+
+It runs from `bubu_executor.sh` immediately after `brew cleanup`, appending a
+**Disk Cleanup** table to the notification email and a **Disk reclaimed** figure
+to the header. It is wired with `--apply`, so it deletes. A failure there is
+swallowed — a cleanup problem must never fail an otherwise successful update
+run.
+
+There is deliberately **no free-space threshold**. macOS and the applications
+rebuild these caches every day whether the disk is full or empty, so gating the
+sweep on free space would mean doing nothing until the machine is already tight
+— which is the situation the script exists to prevent. It runs every morning and
+keeps the accumulation flat.
+
+### What it cleans
+
+uv / npm / gh / Homebrew caches · Electron caches for Claude, VS Code and
+Cursor · Chrome's cache · `__pycache__`, `.ruff_cache`, `.pytest_cache`,
+`.mypy_cache` under `IdeaProjects` · Maven and Gradle artifacts unaccessed for
+90+ days · Trash items older than 30 days.
+
+### What it deliberately does *not* touch
+
+| Path | Why |
+|---|---|
+| `com.apple.wallpaper/aerials` | The aerial videos were downloaded **on purpose** so the lock screen can shuffle all 164 offline. They look like a ~58 GB cache and are not one — this is user data. |
+| `Claude/vm_bundles` | Local agent-mode VM; re-provisioning is a large download. |
+| `~/Downloads`, `~/Documents`, `~/Desktop` | User files. |
+| `node_modules`, `.venv`, `~/.pyenv`, `~/.nvm` | Reinstall cost outweighs the space. |
+| `com.docker.docker` | Deleting the VM image destroys named volumes too. |
+
+The `node_modules`/`.venv`/`.git` directories are `-prune`d from the project
+sweep rather than filtered out of its results, so the walk never descends into
+them.

@@ -1,18 +1,18 @@
 #!/bin/bash
 set -e
 PLIST_NAME="com.suryakiran.brewauto.plist"
-SOURCE_PATH="$HOME/IdeaProjects/BrewAutomation/$PLIST_NAME"
+SOURCE_PATH="$HOME/IdeaProjects/mac-upkeep/$PLIST_NAME"
 DEST_PATH="$HOME/Library/LaunchAgents/$PLIST_NAME"
 
 TZWATCH_PLIST_NAME="com.suryakiran.tzwatch.plist"
-TZWATCH_SOURCE="$HOME/IdeaProjects/BrewAutomation/$TZWATCH_PLIST_NAME"
+TZWATCH_SOURCE="$HOME/IdeaProjects/mac-upkeep/$TZWATCH_PLIST_NAME"
 TZWATCH_DEST="$HOME/Library/LaunchAgents/$TZWATCH_PLIST_NAME"
 
 echo "Syncing and restarting Brew Automation..."
 
 # Enforce .env permissions (should be readable only by owner)
-if [ -f "$HOME/IdeaProjects/BrewAutomation/.env" ]; then
-    chmod 600 "$HOME/IdeaProjects/BrewAutomation/.env" || {
+if [ -f "$HOME/IdeaProjects/mac-upkeep/.env" ]; then
+    chmod 600 "$HOME/IdeaProjects/mac-upkeep/.env" || {
         echo "ERROR: Failed to set .env permissions. Installation aborted."
         exit 1
     }
@@ -39,7 +39,7 @@ echo "✓ LaunchAgent installed and loaded"
 
 # Install and load the timezone watcher
 launchctl bootout gui/"$(id -u)" "$TZWATCH_DEST" 2>/dev/null || true
-chmod +x "$HOME/IdeaProjects/BrewAutomation/tzreload.sh"
+chmod +x "$HOME/IdeaProjects/mac-upkeep/tzreload.sh"
 if ! sed "s|__HOME__|$HOME|g" "$TZWATCH_SOURCE" > "$TZWATCH_DEST"; then
     echo "ERROR: Failed to install tzwatch plist."
     exit 1

@@ -7,7 +7,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>__HOME__/IdeaProjects/BrewAutomation/brew_autoupdate.sh</string>
+        <string>__HOME__/IdeaProjects/mac-upkeep/brew_autoupdate.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -17,9 +17,9 @@
         <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>__HOME__/IdeaProjects/BrewAutomation/system_stdout.log</string>
+    <string>__HOME__/IdeaProjects/mac-upkeep/system_stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/IdeaProjects/BrewAutomation/system_stderr.log</string>
+    <string>__HOME__/IdeaProjects/mac-upkeep/system_stderr.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>

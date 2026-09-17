@@ -6,7 +6,7 @@
 
 STATEFILE="$HOME/.brewauto_timezone"
 PLIST="$HOME/Library/LaunchAgents/com.suryakiran.brewauto.plist"
-LOG="$HOME/IdeaProjects/BrewAutomation/system_stdout.log"
+LOG="$HOME/IdeaProjects/mac-upkeep/system_stdout.log"
 
 TZ_LINK=$(readlink /private/etc/localtime 2>/dev/null) || exit 0
 current_tz=$(printf '%s' "$TZ_LINK" | sed 's|.*/zoneinfo/||')

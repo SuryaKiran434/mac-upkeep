@@ -7,7 +7,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>__HOME__/IdeaProjects/BrewAutomation/tzreload.sh</string>
+        <string>__HOME__/IdeaProjects/mac-upkeep/tzreload.sh</string>
     </array>
     <key>WatchPaths</key>
     <array>
@@ -16,8 +16,8 @@
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>__HOME__/IdeaProjects/BrewAutomation/system_stdout.log</string>
+    <string>__HOME__/IdeaProjects/mac-upkeep/system_stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/IdeaProjects/BrewAutomation/system_stderr.log</string>
+    <string>__HOME__/IdeaProjects/mac-upkeep/system_stderr.log</string>
 </dict>
 </plist>

@@ -2,11 +2,11 @@
 set -e
 
 # ============================================================================
-# BrewAutomation Guard: Prevents duplicate runs and launches executor
+# mac-upkeep Guard: Prevents duplicate runs and launches executor
 # ============================================================================
 
 # Paths
-BASE_DIR="$HOME/IdeaProjects/BrewAutomation"
+BASE_DIR="$HOME/IdeaProjects/mac-upkeep"
 LOG_FILE="$BASE_DIR/brew_update.log"
 SKIP_LOG="$BASE_DIR/skips.log"
 LOCK_FILE="$BASE_DIR/brew_update.lock"
