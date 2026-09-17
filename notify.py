@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send email notifications for BrewAutomation (success or error)."""
+"""Send email notifications for mac-upkeep (success or error)."""
 
 import os
 import sys

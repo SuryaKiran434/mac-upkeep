@@ -1,14 +1,14 @@
 #!/bin/bash
 set -e
 PLIST_NAME="com.suryakiran.restart.plist"
-SOURCE_PATH="$HOME/IdeaProjects/BrewAutomation/$PLIST_NAME"
+SOURCE_PATH="$HOME/IdeaProjects/mac-upkeep/$PLIST_NAME"
 DEST_PATH="/Library/LaunchDaemons/$PLIST_NAME"
 
 echo "Syncing and restarting Restart Automation..."
 
 # Enforce .env permissions (should be readable only by owner)
-if [ -f "$HOME/IdeaProjects/BrewAutomation/.env" ]; then
-    chmod 600 "$HOME/IdeaProjects/BrewAutomation/.env" || {
+if [ -f "$HOME/IdeaProjects/mac-upkeep/.env" ]; then
+    chmod 600 "$HOME/IdeaProjects/mac-upkeep/.env" || {
         echo "ERROR: Failed to set .env permissions. Installation aborted."
         exit 1
     }
@@ -35,8 +35,8 @@ if ! sudo chmod 644 "$DEST_PATH"; then
 fi
 
 # Pre-create log files with restricted permissions so launchd appends rather than creates them
-STDOUT_LOG="$HOME/IdeaProjects/BrewAutomation/restart_stdout.log"
-STDERR_LOG="$HOME/IdeaProjects/BrewAutomation/restart_stderr.log"
+STDOUT_LOG="$HOME/IdeaProjects/mac-upkeep/restart_stdout.log"
+STDERR_LOG="$HOME/IdeaProjects/mac-upkeep/restart_stderr.log"
 sudo touch "$STDOUT_LOG" "$STDERR_LOG"
 sudo chmod 600 "$STDOUT_LOG" "$STDERR_LOG"
 

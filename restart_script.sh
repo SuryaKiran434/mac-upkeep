@@ -9,7 +9,7 @@ for arg in "$@"; do
 done
 
 # Paths
-BASE_DIR="$HOME/IdeaProjects/BrewAutomation"
+BASE_DIR="$HOME/IdeaProjects/mac-upkeep"
 
 # Load config from .env (email credentials) - parse individually to avoid exposing all vars
 SENDER_EMAIL=""

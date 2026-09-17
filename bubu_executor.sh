@@ -2,7 +2,7 @@
 set -e
 
 # ============================================================================
-# BrewAutomation Executor: Updates brew, uv, and Python packages
+# mac-upkeep Executor: Updates brew, uv, and Python packages
 # ============================================================================
 
 # Parse flags
@@ -18,7 +18,7 @@ done
 # SETUP: Paths, Config, Validation
 # ============================================================================
 
-BASE_DIR="$HOME/IdeaProjects/BrewAutomation"
+BASE_DIR="$HOME/IdeaProjects/mac-upkeep"
 TODAY=$(date "+%Y-%m-%d")
 TIMESTAMP=$(date)
 START_EPOCH=$(date +%s)  # run start, used to report duration in the email
