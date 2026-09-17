@@ -1,0 +1,200 @@
+#!/bin/bash
+# ============================================================================
+# cache_cleanup.sh — reclaim regenerable cache/temp space
+#
+# DRY-RUN BY DEFAULT. Nothing is deleted unless --apply is passed.
+#
+#   ./cache_cleanup.sh                 # report only (safe, default)
+#   ./cache_cleanup.sh --apply         # actually delete
+#   ./cache_cleanup.sh --emit-summary  # machine-readable, for bubu_executor.sh
+#
+# Only targets caches that the owning tool regenerates on demand. Anything a
+# rebuild cannot reproduce from source is listed in PROTECTED below and is
+# never touched.
+#
+# NOT TOUCHED, deliberately:
+#   ~/Library/Application Support/com.apple.wallpaper/aerials
+#       Aerial wallpapers were downloaded on purpose (see session
+#       e7623bcd, 2026-09-16) so the lock screen can shuffle all 164
+#       offline. They look like a 58 GB cache and are not one.
+#   ~/Library/Application Support/Claude/vm_bundles   local agent-mode VM
+#   ~/Downloads, ~/Documents, ~/Desktop               user files
+#   */node_modules, */.venv, ~/.pyenv, ~/.nvm         reinstall cost > benefit
+#   ~/Library/Containers/com.docker.docker            destroys volumes
+# ============================================================================
+set -uo pipefail
+
+APPLY=0
+EMIT_SUMMARY=0
+# In --apply mode, skip the whole run when there is already plenty of room.
+# Cleaning caches on a healthy disk just slows the next build down for nothing.
+MIN_FREE_GB=${MIN_FREE_GB:-40}
+AGE_DAYS=${AGE_DAYS:-90}
+
+for arg in "$@"; do
+    case "$arg" in
+        --apply)        APPLY=1 ;;
+        --dry-run)      APPLY=0 ;;
+        --emit-summary) EMIT_SUMMARY=1 ;;
+        --force)        MIN_FREE_GB=0 ;;
+        -h|--help)      sed -n '2,25p' "$0"; exit 0 ;;
+        *) echo "unknown option: $arg" >&2; exit 2 ;;
+    esac
+done
+
+TOTAL_BYTES=0
+REPORT=""
+
+human() {
+    awk -v b="$1" 'BEGIN{
+        if(b>=1073741824) printf "%.1fG", b/1073741824
+        else if(b>=1048576) printf "%.0fM", b/1048576
+        else if(b>=1024)    printf "%.0fK", b/1024
+        else                printf "%dB", b
+    }'
+}
+
+free_gb() {
+    df -k /System/Volumes/Data 2>/dev/null | tail -1 | awk '{printf "%d", $4/1048576}'
+}
+
+# Size of a path in bytes (0 when missing). du -sk is portable to bash 3.2.
+size_of() {
+    [ -e "$1" ] || { echo 0; return; }
+    du -sk "$1" 2>/dev/null | awk '{printf "%d", $1*1024}'
+}
+
+# reclaim <label> <path> [<path>...]
+# Measures, then deletes CONTENTS (never the directory itself — some tools
+# expect their cache dir to exist and will not recreate it).
+reclaim() {
+    local label="$1"; shift
+    local bytes=0 p sz
+    for p in "$@"; do
+        [ -e "$p" ] || continue
+        sz=$(size_of "$p")
+        bytes=$((bytes + sz))
+        if [ "$APPLY" -eq 1 ]; then
+            rm -rf "${p:?}"/* "${p:?}"/.[!.]* 2>/dev/null
+        fi
+    done
+    [ "$bytes" -eq 0 ] && return 0
+    TOTAL_BYTES=$((TOTAL_BYTES + bytes))
+    REPORT="${REPORT}${label}|${bytes}
+"
+}
+
+# reclaim_find <label> <root> <find-args...>
+# For rule-based sweeps (stale artifacts, stray __pycache__ dirs).
+reclaim_find() {
+    local label="$1" root="$2"; shift 2
+    [ -d "$root" ] || return 0
+    local bytes=0 sz
+    local list
+    list=$(find "$root" "$@" 2>/dev/null)
+    [ -z "$list" ] && return 0
+    while IFS= read -r p; do
+        [ -e "$p" ] || continue
+        sz=$(size_of "$p")
+        bytes=$((bytes + sz))
+        [ "$APPLY" -eq 1 ] && rm -rf "$p" 2>/dev/null
+    done <<EOF
+$list
+EOF
+    [ "$bytes" -eq 0 ] && return 0
+    TOTAL_BYTES=$((TOTAL_BYTES + bytes))
+    REPORT="${REPORT}${label}|${bytes}
+"
+}
+
+FREE_BEFORE=$(free_gb)
+
+if [ "$APPLY" -eq 1 ] && [ "$FREE_BEFORE" -ge "$MIN_FREE_GB" ]; then
+    if [ "$EMIT_SUMMARY" -eq 0 ]; then
+        echo "Disk has ${FREE_BEFORE}G free (floor ${MIN_FREE_GB}G) — nothing to do."
+    fi
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Package-manager caches — all refetched on demand
+# ---------------------------------------------------------------------------
+reclaim "uv cache"        "$HOME/.cache/uv"
+reclaim "npm cache"       "$HOME/.npm/_cacache"
+reclaim "gh cache"        "$HOME/.cache/gh"
+reclaim "Homebrew cache"  "$HOME/Library/Caches/Homebrew"
+
+# ---------------------------------------------------------------------------
+# Electron app caches — rebuilt on next launch
+# ---------------------------------------------------------------------------
+for app in Claude Code Cursor; do
+    base="$HOME/Library/Application Support/$app"
+    [ -d "$base" ] || continue
+    reclaim "$app cache" \
+        "$base/Cache" "$base/Code Cache" "$base/GPUCache" \
+        "$base/DawnWebGPUCache" "$base/DawnGraphiteCache"
+done
+
+reclaim "Chrome cache" "$HOME/Library/Caches/Google"
+
+# ---------------------------------------------------------------------------
+# Build artifacts under IdeaProjects — regenerated by the next test/lint run.
+# node_modules and .venv are pruned from the search, not just skipped, so we
+# never descend into them.
+# ---------------------------------------------------------------------------
+reclaim_find "Python/lint caches" "$HOME/IdeaProjects" \
+    \( -name node_modules -o -name .venv -o -name .git \) -prune -o \
+    -type d \( -name __pycache__ -o -name .ruff_cache \
+               -o -name .pytest_cache -o -name .mypy_cache \) -print
+
+# ---------------------------------------------------------------------------
+# Stale JVM artifacts — re-resolved from the remote repo when a build needs them
+# ---------------------------------------------------------------------------
+reclaim_find "Maven (${AGE_DAYS}d+)"  "$HOME/.m2/repository" \
+    -type f \( -name "*.jar" -o -name "*.pom" \) -atime "+${AGE_DAYS}" -print
+reclaim_find "Gradle (${AGE_DAYS}d+)" "$HOME/.gradle/caches" \
+    -maxdepth 3 -type d -name "modules-*" -atime "+${AGE_DAYS}" -print
+
+# ---------------------------------------------------------------------------
+# Trash older than 30 days (matches macOS's own auto-empty behaviour)
+# ---------------------------------------------------------------------------
+reclaim_find "Trash (30d+)" "$HOME/.Trash" -maxdepth 1 -mindepth 1 -mtime +30 -print
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+if [ "$EMIT_SUMMARY" -eq 1 ]; then
+    # Consumed by generate_upgrade_summary() in bubu_executor.sh, which expects
+    # "<name>  <old>  ->  <new>" rows under an @@CAT@@ heading.
+    [ "$TOTAL_BYTES" -eq 0 ] && exit 0
+    if [ "$APPLY" -eq 1 ]; then
+        echo "@@CAT@@ Disk Cleanup"
+    else
+        echo "@@CAT@@ Disk Cleanup (dry run)"
+    fi
+    printf '%s' "$REPORT" | while IFS='|' read -r label bytes; do
+        [ -z "$label" ] && continue
+        echo "$(printf '%s' "$label" | tr ' ' '-')  $(human "$bytes")  ->  0B"
+    done
+    echo "Total-reclaimed  $(human "$TOTAL_BYTES")  ->  0B"
+    exit 0
+fi
+
+if [ "$APPLY" -eq 1 ]; then
+    echo "=== cache cleanup (applied) ==="
+else
+    echo "=== cache cleanup (DRY RUN — nothing deleted, pass --apply) ==="
+fi
+if [ "$TOTAL_BYTES" -eq 0 ]; then
+    echo "  nothing to reclaim"
+    exit 0
+fi
+printf '%s' "$REPORT" | while IFS='|' read -r label bytes; do
+    [ -z "$label" ] && continue
+    printf "  %8s  %s\n" "$(human "$bytes")" "$label"
+done
+echo "  --------"
+printf "  %8s  TOTAL\n" "$(human "$TOTAL_BYTES")"
+if [ "$APPLY" -eq 1 ]; then
+    echo "  free: ${FREE_BEFORE}G -> $(free_gb)G"
+fi

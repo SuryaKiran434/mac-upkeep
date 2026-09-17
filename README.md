@@ -35,6 +35,7 @@ com.suryakiran.brewauto LaunchAgent (plist, daily at 8:00 AM)
                     ├── uv tool upgrade --all        │  a 600-perm temp file
                     ├── uv pip install --upgrade   ──┘  (pyenv Python)
                     ├── brew cleanup --prune=all
+                    ├── cache_cleanup.sh --emit-summary  (dry run by default)
                     ├── awk parses the temp file: dedup + group by category,
                     │   HTML-escape, emit "@@COUNT@@ n" + the HTML table body
                     ├── notify.py  ──► Gmail SMTP_SSL, HTML + plain-text
@@ -651,3 +652,49 @@ This project uses `$HOME` for all paths — works on any macOS user account afte
 ## License
 
 [MIT](LICENSE)
+
+---
+
+## Disk / Cache Cleanup
+
+`cache_cleanup.sh` reclaims regenerable cache space. It is **dry-run by
+default** — it prints what it would delete and deletes nothing until `--apply`
+is passed.
+
+```bash
+./cache_cleanup.sh                 # report only (default)
+./cache_cleanup.sh --apply         # actually delete
+./cache_cleanup.sh --emit-summary  # @@CAT@@ rows for the summary email
+./cache_cleanup.sh --apply --force # ignore the free-space floor
+```
+
+It runs from `bubu_executor.sh` immediately after `brew cleanup`, appending a
+**Disk Cleanup** table to the notification email. It is currently wired in
+**dry-run mode**: once a few reports look right, add `--apply` to that line to
+let it delete for real. A failure there is swallowed — a cleanup problem must
+never fail an otherwise successful update run.
+
+In `--apply` mode it exits early when the disk already has more than
+`MIN_FREE_GB` (default 40) free; cleaning caches on a healthy disk only slows
+the next build down.
+
+### What it cleans
+
+uv / npm / gh / Homebrew caches · Electron caches for Claude, VS Code and
+Cursor · Chrome's cache · `__pycache__`, `.ruff_cache`, `.pytest_cache`,
+`.mypy_cache` under `IdeaProjects` · Maven and Gradle artifacts unaccessed for
+90+ days · Trash items older than 30 days.
+
+### What it deliberately does *not* touch
+
+| Path | Why |
+|---|---|
+| `com.apple.wallpaper/aerials` | The aerial videos were downloaded **on purpose** so the lock screen can shuffle all 164 offline. They look like a ~58 GB cache and are not one — this is user data. |
+| `Claude/vm_bundles` | Local agent-mode VM; re-provisioning is a large download. |
+| `~/Downloads`, `~/Documents`, `~/Desktop` | User files. |
+| `node_modules`, `.venv`, `~/.pyenv`, `~/.nvm` | Reinstall cost outweighs the space. |
+| `com.docker.docker` | Deleting the VM image destroys named volumes too. |
+
+The `node_modules`/`.venv`/`.git` directories are `-prune`d from the project
+sweep rather than filtered out of its results, so the walk never descends into
+them.

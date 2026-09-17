@@ -140,12 +140,18 @@ generate_upgrade_summary() {
         if(c=="") return
         k=c SUBSEP p; if(k in seen) return; seen[k]=1
         if(!(c in cnt)) order[++ncat]=c
-        cnt[c]++; total++
+        cnt[c]++
+        # Disk-cleanup rows are reclaimed caches, not upgraded packages — they
+        # get their own table but must not inflate the "N packages updated"
+        # subtitle that the caller derives from @@COUNT@@.
+        if(c !~ /^Disk Cleanup/) total++
         rows[c]=rows[c] "<tr><td class=\"name\">" esc(p) "</td><td class=\"ver\"><span class=\"old\">" esc(o) "</span><span class=\"arw\"> \342\206\222 </span><span class=\"new\">" esc(n) "</span></td></tr>\n"
     }
     /^@@CAT@@/ { c=$0; sub(/^@@CAT@@ /,"",c); next }
     # Homebrew formulae & casks:  name  old  ->  new  [(size)]
     (c=="Homebrew Formulae" || c=="Applications") && $3=="->" && $2 ~ /^[0-9]/ && $1 ~ /^[A-Za-z0-9@._+-]+$/ { emit(c,$1,$2,$4); next }
+    # Disk cleanup:  label  <size-before>  ->  0B   (from cache_cleanup.sh)
+    c ~ /^Disk Cleanup/ && $3=="->" && $1 ~ /^[A-Za-z0-9()+._-]+$/ { emit(c,$1,$2,$4); next }
     # uv tools:  Updated|Upgraded  name  vOLD  ->  vNEW
     c=="CLI Tools" && ($1=="Updated"||$1=="Upgraded") && $4=="->" && $3 ~ /^v?[0-9]/ { emit(c,$2,$3,$5); next }
     # Python (uv pip) diff:  - name==old   /   + name==new
@@ -153,7 +159,9 @@ generate_upgrade_summary() {
     c=="Python Packages" && /^[[:space:]]*\+[[:space:]]+[A-Za-z0-9._+-]+==/ { s=$0; sub(/^[[:space:]]*\+[[:space:]]+/,"",s); i=index(s,"=="); nm=substr(s,1,i-1); nv=substr(s,i+2); ov=(nm in pyold)?pyold[nm]:"\342\200\224"; emit(c,nm,ov,nv); next }
     END{
         print "@@COUNT@@ " total+0
-        if(total==0){
+        # Render on ncat, not total: a run that upgraded nothing but reclaimed
+        # disk space still has a table to show.
+        if(ncat==0){
             print "<div class=\"empty\"><div class=\"big\">\360\237\216\211</div><div class=\"t\">Everything\342\200\231s current</div><div class=\"s\">No packages needed updating today.</div></div>"
         } else {
             for(j=1;j<=ncat;j++){ c=order[j]
@@ -474,6 +482,20 @@ fi
 
 FAILED_STEP="brew cleanup"
 "$BREW" cleanup --prune=all >/dev/null 2>&1 || true
+
+# ----------------------------------------------------------------------------
+# Cache cleanup (regenerable caches only — see cache_cleanup.sh for the list of
+# protected paths; aerial wallpapers and the Claude VM are deliberately exempt).
+#
+# Currently runs in DRY-RUN mode: it reports what it *would* reclaim into the
+# summary email without deleting anything. Once a few reports look right, add
+# --apply to the line below to let it actually delete. It is intentionally not
+# fatal — a cleanup failure must never fail an otherwise successful update run.
+# ----------------------------------------------------------------------------
+FAILED_STEP="cache cleanup"
+if [ -x "$BASE_DIR/cache_cleanup.sh" ]; then
+    "$BASE_DIR/cache_cleanup.sh" --emit-summary >> "$UPGRADE_TEMP" 2>/dev/null || true
+fi
 
 # ============================================================================
 # SUCCESS: Generate HTML email and send notification
