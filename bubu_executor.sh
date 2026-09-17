@@ -175,8 +175,9 @@ generate_upgrade_summary() {
 }
 
 # Emit the email shell with placeholders. Placeholders are substituted by the
-# caller: HEAD_CLASS (ok|fail), GLYPH (✓|✕), TITLE, SUBTITLE, DATE, TIME,
-# RUN_TYPE, DURATION, and BODY (the grouped package tables or the error box).
+# caller: HEAD_CLASS (ok|fail), GLYPH (✓|✕), TITLE, TAGLINE, DATE, TIME,
+# RUN_TYPE, DURATION, RECLAIMED (disk freed by the cleanup step), and BODY
+# (the grouped package tables or the error box).
 generate_html_email() {
     cat <<'EOF'
 <!DOCTYPE html>
@@ -241,11 +242,14 @@ generate_html_email() {
                 <td><div class="k">Run type</div><div class="v">RUN_TYPE_PLACEHOLDER</div></td>
                 <td><div class="k">Duration</div><div class="v">DURATION_PLACEHOLDER</div></td>
             </tr>
+            <tr>
+                <td colspan="2"><div class="k">Disk reclaimed</div><div class="v">RECLAIMED_PLACEHOLDER</div></td>
+            </tr>
         </table>
         <div class="body">
             BODY_PLACEHOLDER
         </div>
-        <div class="foot"><span class="brand">&#127866; Homebrew Automation</span> &middot; full logs in your automation directory</div>
+        <div class="foot"><span class="brand">&#127866; Mac Upkeep</span> &middot; full logs in your automation directory</div>
     </div>
 </body>
 </html>
@@ -396,12 +400,15 @@ cleanup() {
             html_error=$(generate_html_email)
             html_error="${html_error//HEAD_CLASS_PLACEHOLDER/fail}"
             html_error="${html_error//GLYPH_PLACEHOLDER/✕}"
-            html_error="${html_error//TITLE_PLACEHOLDER/Homebrew Update Failed}"
+            html_error="${html_error//TITLE_PLACEHOLDER/Mac Upkeep Failed}"
             html_error="${html_error//TAGLINE_PLACEHOLDER/Stopped during \'$failed_step_escaped\'}"
             html_error="${html_error//DATE_PLACEHOLDER/$(html_escape "$TODAY")}"
             html_error="${html_error//TIME_PLACEHOLDER/$esc_time}"
             html_error="${html_error//RUN_TYPE_PLACEHOLDER/$esc_run_type}"
             html_error="${html_error//DURATION_PLACEHOLDER/$duration}"
+            # May fire before the cleanup step ran, so default rather than
+            # leaking the raw placeholder into a failure email.
+            html_error="${html_error//RECLAIMED_PLACEHOLDER/$(html_escape "${RECLAIMED:-—}")}"
             html_error="${html_error//BODY_PLACEHOLDER/$error_summary}"
 
             SENDER_EMAIL="$SENDER_EMAIL" SENDER_APP_PASSWORD="$SENDER_APP_PASSWORD" RECIPIENT_EMAIL="$RECIPIENT_EMAIL" \
@@ -493,8 +500,22 @@ FAILED_STEP="brew cleanup"
 # fatal — a cleanup failure must never fail an otherwise successful update run.
 # ----------------------------------------------------------------------------
 FAILED_STEP="cache cleanup"
+RECLAIMED="—"
 if [ -x "$BASE_DIR/cache_cleanup.sh" ]; then
-    "$BASE_DIR/cache_cleanup.sh" --emit-summary >> "$UPGRADE_TEMP" 2>/dev/null || true
+    CLEANUP_TEMP=$(mktemp) || CLEANUP_TEMP=""
+    if [ -n "$CLEANUP_TEMP" ]; then
+        "$BASE_DIR/cache_cleanup.sh" --emit-summary > "$CLEANUP_TEMP" 2>/dev/null || true
+        # First line is the @@RECLAIMED@@ stat for the email header; it must not
+        # reach the table parser, so it is split off rather than appended.
+        RECLAIMED_LINE=$(sed -n '1s/^@@RECLAIMED@@ //p' "$CLEANUP_TEMP")
+        # An `if`, not `[ ... ] && VAR=`: under `set -e` that idiom exits the
+        # whole run whenever the test is false (nothing reclaimable).
+        if [ -n "$RECLAIMED_LINE" ]; then
+            RECLAIMED="$RECLAIMED_LINE"
+        fi
+        sed '1{/^@@RECLAIMED@@/d;}' "$CLEANUP_TEMP" >> "$UPGRADE_TEMP"
+        rm -f "$CLEANUP_TEMP"
+    fi
 fi
 
 # ============================================================================
@@ -518,6 +539,12 @@ else
     SUCCESS_SUBTITLE="Already up to date"
 fi
 
+# The header tagline carries both halves of what the run did: packages and
+# disk. RECLAIMED is set by the cache-cleanup step above.
+if [ "$RECLAIMED" != "—" ]; then
+    SUCCESS_SUBTITLE="$SUCCESS_SUBTITLE · $RECLAIMED"
+fi
+
 if [ -n "$PYTHON_PATH" ] && [ -x "$PYTHON_PATH" ] && [ -n "$SENDER_EMAIL" ] && [ -n "$SENDER_APP_PASSWORD" ] && [ -n "$RECIPIENT_EMAIL" ]; then
     success_body="Brew update completed successfully on $TODAY at $(date).
 $SUCCESS_SUBTITLE.
@@ -531,8 +558,9 @@ $([ "$MANUAL" = true ] && echo "This was a manual run." || echo "")"
     html_body=$(generate_html_email)
     html_body="${html_body//HEAD_CLASS_PLACEHOLDER/ok}"
     html_body="${html_body//GLYPH_PLACEHOLDER/✓}"
-    html_body="${html_body//TITLE_PLACEHOLDER/Homebrew Update Complete}"
-    html_body="${html_body//TAGLINE_PLACEHOLDER/$SUCCESS_SUBTITLE}"
+    html_body="${html_body//TITLE_PLACEHOLDER/Mac Upkeep Complete}"
+    html_body="${html_body//TAGLINE_PLACEHOLDER/$(html_escape "$SUCCESS_SUBTITLE")}"
+    html_body="${html_body//RECLAIMED_PLACEHOLDER/$(html_escape "$RECLAIMED")}"
     html_body="${html_body//DATE_PLACEHOLDER/$(html_escape "$TODAY")}"
     html_body="${html_body//TIME_PLACEHOLDER/$esc_time}"
     html_body="${html_body//RUN_TYPE_PLACEHOLDER/$esc_run_type}"
