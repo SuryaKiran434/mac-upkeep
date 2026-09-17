@@ -110,7 +110,12 @@ EOF
 FREE_BEFORE=$(free_gb)
 
 if [ "$APPLY" -eq 1 ] && [ "$FREE_BEFORE" -ge "$MIN_FREE_GB" ]; then
-    if [ "$EMIT_SUMMARY" -eq 0 ]; then
+    if [ "$EMIT_SUMMARY" -eq 1 ]; then
+        # Still emit the header stat. Skipping silently would make the cleanup
+        # section vanish from the email with no explanation, which reads like a
+        # broken step rather than a deliberate no-op.
+        echo "@@RECLAIMED@@ not needed (${FREE_BEFORE}G free)"
+    else
         echo "Disk has ${FREE_BEFORE}G free (floor ${MIN_FREE_GB}G) — nothing to do."
     fi
     exit 0

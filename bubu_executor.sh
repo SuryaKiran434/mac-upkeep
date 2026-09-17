@@ -494,17 +494,19 @@ FAILED_STEP="brew cleanup"
 # Cache cleanup (regenerable caches only — see cache_cleanup.sh for the list of
 # protected paths; aerial wallpapers and the Claude VM are deliberately exempt).
 #
-# Currently runs in DRY-RUN mode: it reports what it *would* reclaim into the
-# summary email without deleting anything. Once a few reports look right, add
-# --apply to the line below to let it actually delete. It is intentionally not
-# fatal — a cleanup failure must never fail an otherwise successful update run.
+# Runs with --apply: it deletes and reports what it reclaimed into the summary
+# email. Deletion is still gated inside the script by MIN_FREE_GB (default 40) —
+# above that much free space it exits without touching anything, so on a healthy
+# disk this stays a no-op. Drop --apply to return it to report-only. It is
+# intentionally not fatal — a cleanup failure must never fail an otherwise
+# successful update run.
 # ----------------------------------------------------------------------------
 FAILED_STEP="cache cleanup"
 RECLAIMED="—"
 if [ -x "$BASE_DIR/cache_cleanup.sh" ]; then
     CLEANUP_TEMP=$(mktemp) || CLEANUP_TEMP=""
     if [ -n "$CLEANUP_TEMP" ]; then
-        "$BASE_DIR/cache_cleanup.sh" --emit-summary > "$CLEANUP_TEMP" 2>/dev/null || true
+        "$BASE_DIR/cache_cleanup.sh" --apply --emit-summary > "$CLEANUP_TEMP" 2>/dev/null || true
         # First line is the @@RECLAIMED@@ stat for the email header; it must not
         # reach the table parser, so it is split off rather than appended.
         RECLAIMED_LINE=$(sed -n '1s/^@@RECLAIMED@@ //p' "$CLEANUP_TEMP")
