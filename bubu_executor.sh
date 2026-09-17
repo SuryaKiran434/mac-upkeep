@@ -495,10 +495,11 @@ FAILED_STEP="brew cleanup"
 # protected paths; aerial wallpapers and the Claude VM are deliberately exempt).
 #
 # Runs with --apply: it deletes and reports what it reclaimed into the summary
-# email. Deletion is still gated inside the script by MIN_FREE_GB (default 40) —
-# above that much free space it exits without touching anything, so on a healthy
-# disk this stays a no-op. Drop --apply to return it to report-only. It is
-# intentionally not fatal — a cleanup failure must never fail an otherwise
+# email. It runs unconditionally — there is no free-space threshold, because
+# macOS and the apps regenerate these caches every day regardless of how much
+# room is left, and letting them accumulate until the disk is tight is the
+# problem this exists to prevent. Drop --apply to return it to report-only. It
+# is intentionally not fatal — a cleanup failure must never fail an otherwise
 # successful update run.
 # ----------------------------------------------------------------------------
 FAILED_STEP="cache cleanup"

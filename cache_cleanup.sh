@@ -26,9 +26,6 @@ set -uo pipefail
 
 APPLY=0
 EMIT_SUMMARY=0
-# In --apply mode, skip the whole run when there is already plenty of room.
-# Cleaning caches on a healthy disk just slows the next build down for nothing.
-MIN_FREE_GB=${MIN_FREE_GB:-40}
 AGE_DAYS=${AGE_DAYS:-90}
 
 for arg in "$@"; do
@@ -36,7 +33,6 @@ for arg in "$@"; do
         --apply)        APPLY=1 ;;
         --dry-run)      APPLY=0 ;;
         --emit-summary) EMIT_SUMMARY=1 ;;
-        --force)        MIN_FREE_GB=0 ;;
         -h|--help)      sed -n '2,25p' "$0"; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
@@ -109,17 +105,6 @@ EOF
 
 FREE_BEFORE=$(free_gb)
 
-if [ "$APPLY" -eq 1 ] && [ "$FREE_BEFORE" -ge "$MIN_FREE_GB" ]; then
-    if [ "$EMIT_SUMMARY" -eq 1 ]; then
-        # Still emit the header stat. Skipping silently would make the cleanup
-        # section vanish from the email with no explanation, which reads like a
-        # broken step rather than a deliberate no-op.
-        echo "@@RECLAIMED@@ not needed (${FREE_BEFORE}G free)"
-    else
-        echo "Disk has ${FREE_BEFORE}G free (floor ${MIN_FREE_GB}G) — nothing to do."
-    fi
-    exit 0
-fi
 
 # ---------------------------------------------------------------------------
 # Package-manager caches — all refetched on demand

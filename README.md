@@ -665,18 +665,19 @@ is passed.
 ./cache_cleanup.sh                 # report only (default)
 ./cache_cleanup.sh --apply         # actually delete
 ./cache_cleanup.sh --emit-summary  # @@CAT@@ rows for the summary email
-./cache_cleanup.sh --apply --force # ignore the free-space floor
 ```
 
 It runs from `bubu_executor.sh` immediately after `brew cleanup`, appending a
-**Disk Cleanup** table to the notification email. It is currently wired in
-**dry-run mode**: once a few reports look right, add `--apply` to that line to
-let it delete for real. A failure there is swallowed — a cleanup problem must
-never fail an otherwise successful update run.
+**Disk Cleanup** table to the notification email and a **Disk reclaimed** figure
+to the header. It is wired with `--apply`, so it deletes. A failure there is
+swallowed — a cleanup problem must never fail an otherwise successful update
+run.
 
-In `--apply` mode it exits early when the disk already has more than
-`MIN_FREE_GB` (default 40) free; cleaning caches on a healthy disk only slows
-the next build down.
+There is deliberately **no free-space threshold**. macOS and the applications
+rebuild these caches every day whether the disk is full or empty, so gating the
+sweep on free space would mean doing nothing until the machine is already tight
+— which is the situation the script exists to prevent. It runs every morning and
+keeps the accumulation flat.
 
 ### What it cleans
 
