@@ -147,11 +147,23 @@ generate_upgrade_summary() {
         if(c !~ /^Disk Cleanup/) total++
         rows[c]=rows[c] "<tr><td class=\"name\">" esc(p) "</td><td class=\"ver\"><span class=\"old\">" esc(o) "</span><span class=\"arw\"> \342\206\222 </span><span class=\"new\">" esc(n) "</span></td></tr>\n"
     }
+    # Disk-cleanup rows carry one figure, not a transition. Rendering them
+    # through emit() would borrow the version column\x27s "old -> new" shape,
+    # which greys out the reclaimed size and bolds the "0B" it became — the
+    # least informative half of the row. This emits the size alone, emphasised.
+    function emit_size(c,p,sz,   k){
+        if(c=="") return
+        k=c SUBSEP p; if(k in seen) return; seen[k]=1
+        if(!(c in cnt)) order[++ncat]=c
+        cnt[c]++
+        rows[c]=rows[c] "<tr><td class=\"name\">" esc(p) "</td><td class=\"ver\"><span class=\"new\">" esc(sz) "</span></td></tr>\n"
+    }
     /^@@CAT@@/ { c=$0; sub(/^@@CAT@@ /,"",c); next }
     # Homebrew formulae & casks:  name  old  ->  new  [(size)]
     (c=="Homebrew Formulae" || c=="Applications") && $3=="->" && $2 ~ /^[0-9]/ && $1 ~ /^[A-Za-z0-9@._+-]+$/ { emit(c,$1,$2,$4); next }
-    # Disk cleanup:  label  <size-before>  ->  0B   (from cache_cleanup.sh)
-    c ~ /^Disk Cleanup/ && $3=="->" && $1 ~ /^[A-Za-z0-9()+._-]+$/ { emit(c,$1,$2,$4); next }
+    # Disk cleanup:  "<label>\t<size>"  (from cache_cleanup.sh). Tab-separated
+    # so the label keeps its spaces and the size keeps its unit.
+    c ~ /^Disk Cleanup/ && index($0,"\t")>0 { split($0,dc,"\t"); emit_size(c,dc[1],dc[2]); next }
     # uv tools:  Updated|Upgraded  name  vOLD  ->  vNEW
     c=="CLI Tools" && ($1=="Updated"||$1=="Upgraded") && $4=="->" && $3 ~ /^v?[0-9]/ { emit(c,$2,$3,$5); next }
     # Python (uv pip) diff:  - name==old   /   + name==new

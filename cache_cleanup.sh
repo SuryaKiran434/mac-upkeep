@@ -41,12 +41,14 @@ done
 TOTAL_BYTES=0
 REPORT=""
 
+# Spelled-out units ("21 MB", not "21M"): this figure lands in an email read on
+# a phone, where a bare trailing M is easy to misread as anything but megabytes.
 human() {
     awk -v b="$1" 'BEGIN{
-        if(b>=1073741824) printf "%.1fG", b/1073741824
-        else if(b>=1048576) printf "%.0fM", b/1048576
-        else if(b>=1024)    printf "%.0fK", b/1024
-        else                printf "%dB", b
+        if(b>=1073741824) printf "%.1f GB", b/1073741824
+        else if(b>=1048576) printf "%.0f MB", b/1048576
+        else if(b>=1024)    printf "%.0f KB", b/1024
+        else                printf "%d B", b
     }'
 }
 
@@ -178,11 +180,14 @@ if [ "$EMIT_SUMMARY" -eq 1 ]; then
     else
         echo "@@CAT@@ Disk Cleanup (dry run)"
     fi
+    # Rows are TAB-separated "<label>\t<size>". The tab is what lets the label
+    # keep its spaces ("Chrome cache", not "Chrome-cache") and the size keep
+    # its unit ("21 MB") — both would be split apart by whitespace fields.
     printf '%s' "$REPORT" | while IFS='|' read -r label bytes; do
         [ -z "$label" ] && continue
-        echo "$(printf '%s' "$label" | tr ' ' '-')  $(human "$bytes")  ->  0B"
+        printf '%s\t%s\n' "$label" "$(human "$bytes")"
     done
-    echo "Total-reclaimed  $(human "$TOTAL_BYTES")  ->  0B"
+    printf '%s\t%s\n' "Total reclaimed" "$(human "$TOTAL_BYTES")"
     exit 0
 fi
 
